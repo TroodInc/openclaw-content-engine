@@ -9,6 +9,18 @@ This repository demonstrates a clean separation between:
 
 The system is incremental by design: it processes only new Telegram posts, stores extracted knowledge in PostgreSQL with pgvector, schedules future writing tasks, generates AI drafts, and publishes ready drafts.
 
+## Fastest Launch
+
+From the workspace root:
+
+```bash
+chmod +x ./openclaw.sh
+./openclaw.sh setup
+./openclaw.sh run
+```
+
+The root `openclaw.sh` script bootstraps dependencies, builds the workspace, validates the orchestrator `.env`, and launches the selected OpenClaw command.
+
 ---
 
 ## Core Architecture
@@ -197,12 +209,14 @@ Typical loop:
 CLI commands:
 
 ```bash
-node dist/index.js analyze
-node dist/index.js schedule
-node dist/index.js write
-node dist/index.js publish
-node dist/index.js run
+./openclaw.sh analyze
+./openclaw.sh schedule
+./openclaw.sh write
+./openclaw.sh publish
+./openclaw.sh run
 ```
+
+You can still invoke the orchestrator directly with `node dist/index.js ...`, but the root launcher is the recommended entrypoint for this multi-repo workspace.
 
 ---
 
@@ -228,6 +242,12 @@ for dir in telegram-channel-reader article-extractor semantic-skills topic-memor
 done
 ```
 
+Or use the root launcher:
+
+```bash
+./openclaw.sh setup
+```
+
 ### Database
 
 ```bash
@@ -243,6 +263,9 @@ See [`.env.example`](.env.example) for the full list:
 - `OPENAI_API_KEY` — embeddings, scheduling, and article generation
 - `DATABASE_URL` — PostgreSQL connection string
 - `DISCOURSE_URL`, `DISCOURSE_API_KEY`, `DISCOURSE_USERNAME` — Discourse publishing
+
+For `./openclaw.sh run`, publish credentials are required because the full pipeline includes `ArticlePublisherClaw`.
+For `./openclaw.sh analyze`, `schedule`, or `write`, only the Telegram/OpenAI/DB values are required.
 
 ---
 
