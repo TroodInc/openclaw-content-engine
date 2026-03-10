@@ -1,91 +1,262 @@
 # Telegram → Discourse Content Engine (OpenClaw)
 
-An AI-powered editorial pipeline that converts curated Telegram content into structured articles published on Discourse. Further to be extended for multiple platforms.
+An OpenClaw-style AI content engine that turns Telegram channel content into drafted and published Discourse articles.
 
-The system analyzes posts from a Telegram channel, extracts article content, identifies topics, builds an editorial plan, and automatically publishes high-quality summaries or commentary to a Discourse forum.
+This repository demonstrates a clean separation between:
 
-Goal:
-Create a semi-autonomous content machine requiring minimal human input.
+- **Claws** — lightweight workflow orchestrators
+- **Skills** — reusable operations that can be used independently of this project
+
+The system is incremental by design: it processes only new Telegram posts, stores extracted knowledge in PostgreSQL with pgvector, schedules future writing tasks, generates AI drafts, and publishes ready drafts.
 
 ---
 
-## Architecture
+## Core Architecture
 
-The system is built using OpenClaw agents ("Claws") and modular skills.
+```text
+openclaw-content-engine/
+  src/
+    claws/
+      telegram-analyzer-claw.ts
+      publication-scheduler-claw.ts
+      article-writer-claw.ts
+      article-publisher-claw.ts
+    skills/
+      telegram-reader-skill.ts
+      article-extractor-skill.ts
+      semantic-utils-skill.ts
+      topic-memory-skill.ts
+      editorial-intelligence-skill.ts
+      discourse-publisher-skill.ts
+    runtime.ts
+    index.ts
+```
+
+## Claws vs Skills
 
 ### Claws
 
-Telegram Analyzer
-- monitors Telegram channel
-- extracts articles
-- generates summaries
-- updates topic memory
+Claws are orchestration units. They coordinate multi-step workflows, persist progress, and decide which skills to call next.
 
-Publication Scheduler
-- analyzes topic trends
-- builds editorial calendar
-- allows user review/edit
+Implemented claws:
 
-Article Writer
-- generates Discourse articles from topics and article summaries
-- incorporates user comments
+- `TelegramAnalyzerClaw`
+- `PublicationSchedulerClaw`
+- `ArticleWriterClaw`
+- `ArticlePublisherClaw`
 
-Article Publisher
-- publishes articles to Discourse
-- tracks publication state
+### Skills
 
----
+Skills are reusable operations. They wrap support packages and expose clean project-facing interfaces.
 
-## Skills used
+Implemented skills:
 
-telegram-channel-reader  
-article-extractor  
-embedding-utils  
-topic-memory-db  
-discourse-api-client
+- `TelegramReaderSkill` → wraps `@openclaw/telegram-channel-reader`
+- `ArticleExtractorSkill` → wraps `@openclaw/article-extractor`
+- `SemanticUtilsSkill` → wraps `@openclaw/semantic-skills`
+- `TopicMemorySkill` → wraps `@openclaw/topic-memory-db`
+- `DiscoursePublisherSkill` → wraps `@openclaw/discourse-api-client`
+- `EditorialIntelligenceSkill` → OpenAI-backed planning and writing skill
 
 ---
 
-## Data model
+## End-to-End Pipeline
 
-The system maintains:
+```text
+Telegram channel
+  ↓
+TelegramAnalyzerClaw
+  ↓
+Posts + extracted articles + embeddings + topic links
+  ↓
+PublicationSchedulerClaw
+  ↓
+Content plan items
+  ↓
+ArticleWriterClaw
+  ↓
+Persisted draft articles
+  ↓
+ArticlePublisherClaw
+  ↓
+Published Discourse topics
+```
 
-posts  
-articles  
-embeddings  
-topics  
-topic_article_relations  
-content_plan  
-published_articles
+### 1. `TelegramAnalyzerClaw`
+
+Responsibilities:
+
+- read new channel posts using `telegram-channel-reader`
+- detect URLs
+- extract article content using `article-extractor`
+- generate embeddings via semantic utilities
+- cluster related content into topics
+- store structured knowledge in `topic-memory-db`
+
+Output:
+
+- stored posts
+- stored articles
+- stored embeddings
+- topic/article links
+- structured article knowledge objects
+
+### 2. `PublicationSchedulerClaw`
+
+Responsibilities:
+
+- review stored articles and topics
+- detect which topics are already covered
+- cluster similar material for editorial prioritization
+- use the editorial AI skill to rank candidate topics
+- create content plan entries with optional human comments
+
+Output:
+
+- scheduled article tasks in `content_plan`
+
+### 3. `ArticleWriterClaw`
+
+Responsibilities:
+
+- take an approved scheduled topic
+- retrieve related source articles and summaries
+- incorporate human comments
+- generate a concise article and tags using the editorial AI skill
+- persist drafts in `draft_articles`
+- update plan item status
+
+Output:
+
+- stored article drafts ready for publication review
+
+### 4. `ArticlePublisherClaw`
+
+Responsibilities:
+
+- retrieve ready drafts
+- format and publish them to Discourse
+- persist publication metadata
+- mark draft and plan statuses as published
+
+Output:
+
+- published Discourse topics
+- updated pipeline state
 
 ---
 
-## Workflow
+## Supporting Repositories Used as Skills
 
-Telegram Channel
-↓
-Telegram Analyzer
-↓
-Article extraction + summarization
-↓
-Topic memory update
-↓
-Editorial plan generation
-↓
-Article generation
-↓
-Discourse publishing
+| Package | Purpose |
+|---------|---------|
+| `telegram-channel-reader` | Incremental Telegram post retrieval |
+| `article-extractor` | URL → clean article extraction |
+| `semantic-skills` | Embeddings, cosine similarity, clustering |
+| `topic-memory-db` | PostgreSQL + pgvector knowledge store |
+| `discourse-api-client` | Discourse publishing |
+
+These repositories remain reusable libraries. The OpenClaw binding lives in this repo’s `skills/` layer.
 
 ---
 
-## Goal
+## Persistent Data Model
 
-Efficient token usage through incremental topic memory and embeddings.
+Long-lived editorial memory is stored in PostgreSQL.
 
-Only new content is processed during updates.
+| Table | Purpose |
+|-------|---------|
+| `posts` | Telegram messages with URLs and metadata |
+| `articles` | Extracted article content, titles, summaries |
+| `embeddings` | `vector(1536)` embeddings with IVFFlat index |
+| `topics` | Discovered topic clusters with centroid vectors |
+| `topic_articles` | Many-to-many links between topics and articles |
+| `content_plan` | Editorial plan items |
+| `draft_articles` | AI-generated article drafts persisted before publishing |
+| `published_articles` | Published Discourse topic/post references |
+| `pipeline_state` | Key-value store for incremental processing state |
+
+Key properties:
+
+- native `vector(1536)` embeddings
+- pgvector cosine search support
+- incremental last-processed Telegram state
+- durable AI draft persistence
+
+---
+
+## Execution Model
+
+Typical loop:
+
+1. `TelegramAnalyzerClaw` processes new posts
+2. `PublicationSchedulerClaw` updates the content plan
+3. `ArticleWriterClaw` generates drafts for approved tasks
+4. `ArticlePublisherClaw` publishes ready drafts
+
+CLI commands:
+
+```bash
+node dist/index.js analyze
+node dist/index.js schedule
+node dist/index.js write
+node dist/index.js publish
+node dist/index.js run
+```
+
+---
+
+## Setup
+
+### Requirements
+
+- **Node.js** ≥ 18
+- **PostgreSQL** ≥ 15 with the [pgvector](https://github.com/pgvector/pgvector) extension
+- **Telegram API credentials** from [my.telegram.org](https://my.telegram.org)
+- **OpenAI API key**
+- optional **Discourse API credentials**
+
+### Install
+
+```bash
+for dir in telegram-channel-reader article-extractor semantic-skills topic-memory-db discourse-api-client openclaw-content-engine; do
+  (cd $dir && npm install)
+done
+
+for dir in telegram-channel-reader article-extractor semantic-skills topic-memory-db discourse-api-client openclaw-content-engine; do
+  (cd $dir && npm run build)
+done
+```
+
+### Database
+
+```bash
+createdb openclaw
+psql openclaw -c "CREATE EXTENSION IF NOT EXISTS vector;"
+```
+
+### Environment
+
+See [`.env.example`](.env.example) for the full list:
+
+- `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_CHANNEL` — Telegram access
+- `OPENAI_API_KEY` — embeddings, scheduling, and article generation
+- `DATABASE_URL` — PostgreSQL connection string
+- `DISCOURSE_URL`, `DISCOURSE_API_KEY`, `DISCOURSE_USERNAME` — Discourse publishing
+
+---
+
+## Design Principles
+
+- **Claws stay lightweight**
+- **Skills remain reusable**
+- **AI is used for planning and writing, not just deterministic routing**
+- **Incremental operation is mandatory**
+- **Persistent semantic memory prevents wasteful reprocessing**
+- **Open-source readability matters**
 
 ---
 
 ## Status
 
-Early experimental OpenClaw project.
+This repository now serves as a cleaner reference structure for an OpenClaw-powered AI content engine built on reusable TypeScript support packages.

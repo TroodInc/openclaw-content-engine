@@ -1,0 +1,32 @@
+{
+  "name": "@openclaw/content-engine",
+  "version": "0.1.0",
+  "description": "AI-powered editorial pipeline: Telegram → Discourse",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "analyze": "node dist/index.js analyze",
+    "schedule": "node dist/index.js schedule",
+    "write": "node dist/index.js write",
+    "publish": "node dist/index.js publish",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@openclaw/telegram-channel-reader": "file:../telegram-channel-reader",
+    "@openclaw/article-extractor": "file:../article-extractor",
+    "@openclaw/semantic-skills": "file:../semantic-skills",
+    "@openclaw/topic-memory-db": "file:../topic-memory-db",
+    "@openclaw/discourse-api-client": "file:../discourse-api-client",
+    "openai": "^4.28.0",
+    "dotenv": "^16.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.11.0"
+  },
+  "license": "MIT"
+}
