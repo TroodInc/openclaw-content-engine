@@ -9,6 +9,10 @@ export class ArticleWriterClaw {
   constructor(private readonly runtime: OpenClawRuntime) {}
 
   async run(input?: { planId?: string }): Promise<ArticleWriterClawResult> {
+    return this.write(input);
+  }
+
+  async write(input?: { planId?: string }): Promise<ArticleWriterClawResult> {
     const approvedItems = await this.getPlanItems(input?.planId);
     const topics = await this.runtime.topicMemory.getAllTopics();
     const drafts: DraftArticle[] = [];
@@ -43,6 +47,35 @@ export class ArticleWriterClaw {
     }
 
     return { drafts };
+  }
+
+  async writeAbout(topicName: string): Promise<ArticleWriterClawResult> {
+    const topics = await this.runtime.topicMemory.getAllTopics();
+    const matchedTopic = topics.find((topic) => topic.name.toLowerCase().includes(topicName.toLowerCase()));
+    if (!matchedTopic) {
+      return { drafts: [] };
+    }
+
+    const allPlanItems = await this.runtime.topicMemory.getAllContentPlan();
+    let planItem = allPlanItems.find(
+      (item) => item.topicId === matchedTopic.id && (item.status === "approved" || item.status === "draft")
+    );
+
+    if (!planItem) {
+      planItem = await this.runtime.topicMemory.insertContentPlanItem({
+        topicId: matchedTopic.id,
+        status: "approved",
+        priority: 100,
+        humanComment: `Requested from chat for topic: ${topicName}`,
+      });
+    } else if (planItem.status === "draft") {
+      await this.runtime.topicMemory.updateContentPlanItem(planItem.id, {
+        status: "approved",
+        humanComment: planItem.humanComment || `Requested from chat for topic: ${topicName}`,
+      });
+    }
+
+    return this.write({ planId: planItem.id });
   }
 
   private async getPlanItems(planId?: string): Promise<ContentPlanItem[]> {

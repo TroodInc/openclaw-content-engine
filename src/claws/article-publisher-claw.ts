@@ -10,6 +10,10 @@ export class ArticlePublisherClaw {
   constructor(private readonly runtime: OpenClawRuntime, private readonly categoryId: number) {}
 
   async run(): Promise<ArticlePublisherClawResult> {
+    return this.publish();
+  }
+
+  async publish(): Promise<ArticlePublisherClawResult> {
     const drafts = await this.runtime.topicMemory.getDraftArticlesByStatus("ready");
     let published = 0;
     let failed = 0;

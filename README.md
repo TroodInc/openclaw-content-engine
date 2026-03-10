@@ -16,7 +16,7 @@ From the workspace root:
 ```bash
 chmod +x ./openclaw.sh
 ./openclaw.sh setup
-./openclaw.sh run
+./openclaw.sh chat
 ```
 
 The root `openclaw.sh` script bootstraps dependencies, builds the workspace, validates the orchestrator `.env`, and launches the selected OpenClaw command.
@@ -29,6 +29,7 @@ The root `openclaw.sh` script bootstraps dependencies, builds the workspace, val
 openclaw-content-engine/
   src/
     claws/
+      content-engine-claw.ts
       telegram-analyzer-claw.ts
       publication-scheduler-claw.ts
       article-writer-claw.ts
@@ -52,6 +53,7 @@ Claws are orchestration units. They coordinate multi-step workflows, persist pro
 
 Implemented claws:
 
+- `ContentEngineClaw`
 - `TelegramAnalyzerClaw`
 - `PublicationSchedulerClaw`
 - `ArticleWriterClaw`
@@ -69,6 +71,34 @@ Implemented skills:
 - `TopicMemorySkill` → wraps `@openclaw/topic-memory-db`
 - `DiscoursePublisherSkill` → wraps `@openclaw/discourse-api-client`
 - `EditorialIntelligenceSkill` → OpenAI-backed planning and writing skill
+
+---
+
+## Chat-First Control Flow
+
+```text
+OpenClaw Chat Interface
+  ↓
+ContentEngineClaw
+  ↓
+Specialized claw actions
+  ├─ TelegramAnalyzerClaw.analyze()
+  ├─ PublicationSchedulerClaw.showPlan()
+  ├─ PublicationSchedulerClaw.schedule()
+  ├─ ArticleWriterClaw.write()
+  ├─ ArticleWriterClaw.writeAbout()
+  └─ ArticlePublisherClaw.publish()
+```
+
+The user interacts with the content engine through chat.
+`ContentEngineClaw` is the primary control mechanism and decides which specialized claw action to call.
+
+Example interactions:
+
+- `Analyze new Telegram posts`
+- `Show the current content plan`
+- `Write an article about the AI agent economy`
+- `Publish scheduled articles`
 
 ---
 
@@ -199,7 +229,21 @@ Key properties:
 
 ## Execution Model
 
-Typical loop:
+Primary interface:
+
+- `./openclaw.sh chat`
+
+Convenience commands:
+
+- `./openclaw.sh analyze`
+- `./openclaw.sh schedule`
+- `./openclaw.sh write`
+- `./openclaw.sh publish`
+- `./openclaw.sh run`
+
+`run` may still be used, but it is only a convenience wrapper that triggers a sequence of chat-routed claw actions through `ContentEngineClaw`.
+
+Example convenience sequence:
 
 1. `TelegramAnalyzerClaw` processes new posts
 2. `PublicationSchedulerClaw` updates the content plan
@@ -209,6 +253,7 @@ Typical loop:
 CLI commands:
 
 ```bash
+./openclaw.sh chat
 ./openclaw.sh analyze
 ./openclaw.sh schedule
 ./openclaw.sh write
@@ -264,14 +309,15 @@ See [`.env.example`](.env.example) for the full list:
 - `DATABASE_URL` — PostgreSQL connection string
 - `DISCOURSE_URL`, `DISCOURSE_API_KEY`, `DISCOURSE_USERNAME` — Discourse publishing
 
-For `./openclaw.sh run`, publish credentials are required because the full pipeline includes `ArticlePublisherClaw`.
-For `./openclaw.sh analyze`, `schedule`, or `write`, only the Telegram/OpenAI/DB values are required.
+For `./openclaw.sh chat`, `analyze`, `schedule`, or `write`, only the Telegram/OpenAI/DB values are required.
+For `./openclaw.sh publish` or `run`, publish credentials are required.
 
 ---
 
 ## Design Principles
 
 - **Claws stay lightweight**
+- **The chat agent is the primary control interface**
 - **Skills remain reusable**
 - **AI is used for planning and writing, not just deterministic routing**
 - **Incremental operation is mandatory**

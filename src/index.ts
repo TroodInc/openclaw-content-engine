@@ -4,12 +4,14 @@ import { loadConfig } from "./config.js";
 import {
   ArticlePublisherClaw,
   ArticleWriterClaw,
+  ContentEngineClaw,
   PublicationSchedulerClaw,
   TelegramAnalyzerClaw,
 } from "./claws/index.js";
+import { startInteractiveChat } from "./chat.js";
 import { createRuntime } from "./runtime.js";
 
-const COMMANDS = ["analyze", "schedule", "write", "publish", "run"] as const;
+const COMMANDS = ["chat", "analyze", "schedule", "write", "publish", "run"] as const;
 type Command = (typeof COMMANDS)[number];
 
 function printUsage(): void {
@@ -19,18 +21,19 @@ OpenClaw Content Engine — Telegram → Discourse Pipeline
 Usage: node dist/index.js <command>
 
 Commands:
+  chat      Start an interactive OpenClaw chat session
   analyze   Fetch new Telegram posts, extract articles, generate embeddings, discover topics
   schedule  Create content plan from discovered topics
   write     Generate articles for approved plan items
   publish   Publish generated articles to Discourse
-  run       Run the full pipeline (analyze → schedule)
+  run       Convenience wrapper that triggers chat-routed claw actions
 
 Environment variables: see .env.example
 `);
 }
 
 async function main(): Promise<void> {
-  const command = (process.argv[2] || "run") as Command;
+  const command = (process.argv[2] || "chat") as Command;
 
   if (!COMMANDS.includes(command)) {
     console.error(`Unknown command: ${command}`);
@@ -47,11 +50,25 @@ async function main(): Promise<void> {
   const schedulerClaw = new PublicationSchedulerClaw(runtime);
   const writerClaw = new ArticleWriterClaw(runtime);
   const publisherClaw = new ArticlePublisherClaw(runtime, config.discourse.categoryId);
+  const contentEngineClaw = new ContentEngineClaw({
+    telegramAnalyzer: analyzerClaw,
+    publicationScheduler: schedulerClaw,
+    articleWriter: writerClaw,
+    articlePublisher: publisherClaw,
+    openAiApiKey: config.openai.apiKey,
+    model: config.openai.model,
+  });
 
   try {
     switch (command) {
+      case "chat": {
+        await startInteractiveChat(contentEngineClaw);
+        break;
+      }
+
       case "analyze": {
-        const result = await analyzerClaw.run();
+        const response = await contentEngineClaw.handleUserMessage("Analyze new Telegram posts");
+        const result = response.payload as Awaited<ReturnType<TelegramAnalyzerClaw["analyze"]>>;
         console.log("\n--- Analysis Complete ---");
         console.log(`  New posts:      ${result.newPosts}`);
         console.log(`  New articles:   ${result.newArticles}`);
@@ -61,12 +78,14 @@ async function main(): Promise<void> {
       }
 
       case "schedule": {
-        const result = await schedulerClaw.run();
+        const response = await contentEngineClaw.handleUserMessage("Schedule high priority content plan items");
+        const result = response.payload as Awaited<ReturnType<PublicationSchedulerClaw["schedule"]>>;
         console.log("\n--- Scheduling Complete ---");
         console.log(`  New plan items:  ${result.scheduled.length}`);
         console.log(`  Total pending:   ${result.totalDraft}`);
 
-        const plan = await runtime.topicMemory.getAllContentPlan();
+        const planResponse = await contentEngineClaw.handleUserMessage("Show the current content plan");
+        const plan = planResponse.payload as Awaited<ReturnType<PublicationSchedulerClaw["showPlan"]>>;
         if (plan.length > 0) {
           console.log("\nContent Plan:");
           const topics = await runtime.topicMemory.getAllTopics();
@@ -81,7 +100,8 @@ async function main(): Promise<void> {
       }
 
       case "write": {
-        const result = await writerClaw.run();
+        const response = await contentEngineClaw.handleUserMessage("Write an article for approved scheduled topics");
+        const result = response.payload as Awaited<ReturnType<ArticleWriterClaw["write"]>>;
         console.log("\n--- Writing Complete ---");
         console.log(`  Drafts generated: ${result.drafts.length}`);
         for (const article of result.drafts) {
@@ -91,7 +111,8 @@ async function main(): Promise<void> {
       }
 
       case "publish": {
-        const pubResult = await publisherClaw.run();
+        const response = await contentEngineClaw.handleUserMessage("Publish scheduled articles");
+        const pubResult = response.payload as Awaited<ReturnType<ArticlePublisherClaw["publish"]>>;
         console.log("\n--- Publishing Complete ---");
         console.log(`  Published: ${pubResult.published}`);
         console.log(`  Failed:    ${pubResult.failed}`);
@@ -99,25 +120,12 @@ async function main(): Promise<void> {
       }
 
       case "run": {
-        console.log("=== OpenClaw Content Engine ===\n");
-
-        console.log("--- Step 1: Telegram Analysis ---");
-        const analysisResult = await analyzerClaw.run();
-        console.log(`  Posts: ${analysisResult.newPosts}, Articles: ${analysisResult.newArticles}, Topics: ${analysisResult.topicsUpdated}\n`);
-
-        console.log("--- Step 2: Content Scheduling ---");
-        const scheduleResult = await schedulerClaw.run();
-        console.log(`  New items: ${scheduleResult.scheduled.length}, Pending: ${scheduleResult.totalDraft}\n`);
-
-        console.log("--- Step 3: Article Drafting ---");
-        const writeResult = await writerClaw.run();
-        console.log(`  Drafts generated: ${writeResult.drafts.length}\n`);
-
-        console.log("--- Step 4: Publishing Ready Drafts ---");
-        const publishResult = await publisherClaw.run();
-        console.log(`  Published: ${publishResult.published}, Failed: ${publishResult.failed}\n`);
-
-        console.log("=== Pipeline Complete ===");
+        console.log("=== OpenClaw Content Engine Chat Convenience Run ===\n");
+        const responses = await contentEngineClaw.runConvenienceSequence();
+        for (const response of responses) {
+          console.log(`[${response.action}] ${response.summary}`);
+        }
+        console.log("\n=== Convenience Run Complete ===");
         break;
       }
     }

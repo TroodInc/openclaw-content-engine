@@ -24,6 +24,10 @@ export class TelegramAnalyzerClaw {
   ) {}
 
   async run(): Promise<TelegramAnalyzerClawResult> {
+    return this.analyze();
+  }
+
+  async analyze(): Promise<TelegramAnalyzerClawResult> {
     const lastId = await this.getLastProcessedId();
     const fetchResult = await this.runtime.telegramReader.run({ sinceId: lastId, limit: 100 });
     const newPosts = await this.persistNewPosts(fetchResult.posts);

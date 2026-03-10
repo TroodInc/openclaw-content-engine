@@ -16,6 +16,10 @@ export class PublicationSchedulerClaw {
   constructor(private readonly runtime: OpenClawRuntime) {}
 
   async run(input?: { humanComment?: string; maxItems?: number }): Promise<PublicationSchedulerClawResult> {
+    return this.schedule(input);
+  }
+
+  async schedule(input?: { humanComment?: string; maxItems?: number }): Promise<PublicationSchedulerClawResult> {
     const topics = await this.runtime.topicMemory.getAllTopics();
     const articles = await this.runtime.topicMemory.getAllArticles();
     const embeddings = await this.runtime.topicMemory.getAllEmbeddings();
@@ -68,6 +72,10 @@ export class PublicationSchedulerClaw {
       scheduled,
       totalDraft: (await this.runtime.topicMemory.getContentPlanByStatus("draft")).length,
     };
+  }
+
+  async showPlan(): Promise<ContentPlanItem[]> {
+    return this.runtime.topicMemory.getAllContentPlan();
   }
 
   async approve(planId: string, comment?: string): Promise<void> {
