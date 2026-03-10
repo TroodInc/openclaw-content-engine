@@ -1,0 +1,50 @@
+{
+  "name": "telegram-discourse-content-engine",
+  "mode": "openclaw-compatible",
+  "entrypoints": {
+    "chat": "node dist/index.js chat",
+    "action": "node dist/index.js action <action-name> '<json-args>'",
+    "docker_chat": "docker compose run --rm engine node dist/index.js chat",
+    "docker_action": "docker compose run --rm engine node dist/index.js action <action-name> '<json-args>'"
+  },
+  "actions": [
+    {
+      "name": "telegram.analyze",
+      "description": "Fetch new Telegram posts, extract articles, generate embeddings, and refresh topics.",
+      "args": []
+    },
+    {
+      "name": "plan.show",
+      "description": "List current content plan items and statuses.",
+      "args": []
+    },
+    {
+      "name": "plan.schedule",
+      "description": "Create draft content plan items for candidate topics.",
+      "args": [
+        { "name": "humanComment", "type": "string", "required": false },
+        { "name": "maxItems", "type": "number", "required": false }
+      ]
+    },
+    {
+      "name": "plan.approve",
+      "description": "Approve a scheduled plan item so it can be drafted.",
+      "args": [
+        { "name": "planId", "type": "string", "required": true },
+        { "name": "comment", "type": "string", "required": false }
+      ]
+    },
+    {
+      "name": "article.write",
+      "description": "Draft approved articles, or draft for a named topic.",
+      "args": [
+        { "name": "topicName", "type": "string", "required": false }
+      ]
+    },
+    {
+      "name": "article.publish",
+      "description": "Publish ready drafts to Discourse.",
+      "args": []
+    }
+  ]
+}

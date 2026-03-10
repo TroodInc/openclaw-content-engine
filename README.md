@@ -1,6 +1,13 @@
-# Telegram → Discourse Content Engine (OpenClaw)
+# Telegram → Discourse Content Engine (OpenClaw-style)
 
 An OpenClaw-style AI content engine that turns Telegram channel content into drafted and published Discourse articles.
+
+This repository currently implements a project-local claws-and-skills architecture. It does not yet integrate with an official OpenClaw SDK, runtime, or deployment model from `docs.openclaw.ai`.
+
+The repository supports two complementary usage modes in the same codebase:
+
+- **Dockerized runtime mode** — run the content engine and database in containers
+- **OpenClaw-compatible mode** — let an external OpenClaw installation drive this repo through stable machine-friendly actions
 
 This repository demonstrates a clean separation between:
 
@@ -20,6 +27,81 @@ chmod +x ./openclaw.sh
 ```
 
 The root `openclaw.sh` script bootstraps dependencies, builds the workspace, validates the orchestrator `.env`, and launches the selected OpenClaw command.
+
+If you do not want to install and run the stack directly on your machine, use the Docker workflow below instead.
+
+---
+
+## Docker Setup
+
+The workspace includes a containerized runtime for isolated execution:
+
+- `Dockerfile` — builds the multi-repo Node.js workspace
+- `docker-compose.yml` — runs the content engine and PostgreSQL with `pgvector`
+- `.env.docker.example` — example container environment file
+
+### Docker Quick Start
+
+From the workspace root:
+
+```bash
+cp openclaw-content-engine/.env.docker.example openclaw-content-engine/.env.docker
+docker compose build
+docker compose run --rm engine node dist/index.js chat
+```
+
+For the Docker setup, set:
+
+```bash
+DATABASE_URL=postgresql://postgres:postgres@db:5432/openclaw
+```
+
+To start only the database service first:
+
+```bash
+docker compose up -d db
+```
+
+To run a one-off command instead of chat:
+
+```bash
+docker compose run --rm engine node dist/index.js analyze
+docker compose run --rm engine node dist/index.js schedule
+docker compose run --rm engine node dist/index.js write
+docker compose run --rm engine node dist/index.js publish
+```
+
+---
+
+## OpenClaw-Compatible Mode
+
+This repo also exposes a stable action interface intended for an external OpenClaw controller.
+
+Compatibility assets:
+
+- `prompt.md` — domain prompt for the content engine agent
+- `openclaw/actions.json` — machine-readable action catalog
+- `node dist/index.js action ...` — stable action execution CLI
+
+Example host usage:
+
+```bash
+node dist/index.js action plan.show
+node dist/index.js action plan.schedule '{"humanComment":"Prioritize security and infra topics","maxItems":3}'
+node dist/index.js action article.write '{"topicName":"AI agent economy"}'
+```
+
+Example Docker usage:
+
+```bash
+docker compose run --rm engine node dist/index.js action plan.show
+docker compose run --rm engine node dist/index.js action article.publish
+```
+
+This gives you one repo with two operating styles:
+
+- **self-contained Docker execution**
+- **external OpenClaw-driven execution**
 
 ---
 
@@ -92,6 +174,8 @@ Specialized claw actions
 
 The user interacts with the content engine through chat.
 `ContentEngineClaw` is the primary control mechanism and decides which specialized claw action to call.
+
+For machine-driven integrations, the same action surface is also available through `node dist/index.js action <name> '<json-args>'`.
 
 Example interactions:
 
@@ -233,6 +317,10 @@ Primary interface:
 
 - `./openclaw.sh chat`
 
+Additional machine-friendly interface:
+
+- `node dist/index.js action <action-name> '<json-args>'`
+
 Convenience commands:
 
 - `./openclaw.sh analyze`
@@ -323,6 +411,22 @@ For `./openclaw.sh publish` or `run`, publish credentials are required.
 - **Incremental operation is mandatory**
 - **Persistent semantic memory prevents wasteful reprocessing**
 - **Open-source readability matters**
+
+## Integration Status
+
+What is implemented today:
+
+- project-local `Claw` and `Skill` abstractions
+- a chat-first control layer via `ContentEngineClaw`
+- specialized claws for analysis, scheduling, writing, and publishing
+- Dockerized isolated execution for the app and database
+- OpenClaw-compatible action entrypoint for external control
+
+What is not implemented yet:
+
+- verified integration with an official OpenClaw SDK
+- official OpenClaw runtime registration or packaging model
+- official OpenClaw deployment conventions from `docs.openclaw.ai`
 
 ---
 

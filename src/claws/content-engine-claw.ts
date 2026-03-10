@@ -47,6 +47,11 @@ export class ContentEngineClaw {
     return this.executeAction(actionCall);
   }
 
+  async executeActionForIntegration(call: ContentEngineActionCall): Promise<unknown> {
+    const response = await this.executeAction(call);
+    return response.payload;
+  }
+
   async runConvenienceSequence(): Promise<ChatResponse[]> {
     const commands = [
       "Analyze new Telegram posts",

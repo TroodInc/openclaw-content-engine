@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
+    "action": "node dist/index.js action",
     "start": "node dist/index.js",
     "analyze": "node dist/index.js analyze",
     "chat": "node dist/index.js chat",

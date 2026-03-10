@@ -9,9 +9,14 @@ import {
   TelegramAnalyzerClaw,
 } from "./claws/index.js";
 import { startInteractiveChat } from "./chat.js";
+import {
+  executeOpenClawAction,
+  OPENCLAW_ACTIONS,
+  parseActionArgs,
+} from "./openclaw-compat.js";
 import { createRuntime } from "./runtime.js";
 
-const COMMANDS = ["chat", "analyze", "schedule", "write", "publish", "run"] as const;
+const COMMANDS = ["chat", "action", "analyze", "schedule", "write", "publish", "run"] as const;
 type Command = (typeof COMMANDS)[number];
 
 function printUsage(): void {
@@ -22,6 +27,7 @@ Usage: node dist/index.js <command>
 
 Commands:
   chat      Start an interactive OpenClaw chat session
+  action    Execute a machine-friendly action for OpenClaw-compatible integrations
   analyze   Fetch new Telegram posts, extract articles, generate embeddings, discover topics
   schedule  Create content plan from discovered topics
   write     Generate articles for approved plan items
@@ -63,6 +69,31 @@ async function main(): Promise<void> {
     switch (command) {
       case "chat": {
         await startInteractiveChat(contentEngineClaw);
+        break;
+      }
+
+      case "action": {
+        const actionName = process.argv[3];
+        const actionDefinition = OPENCLAW_ACTIONS.find((action) => action.name === actionName);
+        if (!actionName || !actionDefinition) {
+          console.error("Unknown or missing action name.");
+          console.error(`Available actions: ${OPENCLAW_ACTIONS.map((action) => action.name).join(", ")}`);
+          process.exit(1);
+        }
+
+        const args = parseActionArgs(process.argv[4]);
+        const payload = await executeOpenClawAction(contentEngineClaw, actionDefinition.name, args);
+        console.log(
+          JSON.stringify(
+            {
+              action: actionDefinition.name,
+              args: args || {},
+              payload,
+            },
+            null,
+            2
+          )
+        );
         break;
       }
 
