@@ -1,5 +1,6 @@
 import "dotenv/config";
-import { TopicMemoryDB } from "@openclaw/topic-memory-db";
+import { normalizeTelegramChannelReference } from "@contentengine/telegram-channel-reader";
+import { TopicMemoryDB } from "@contentengine/topic-memory-db";
 import { loadConfig } from "./config.js";
 import {
   ArticlePublisherClaw,
@@ -19,15 +20,27 @@ import { createRuntime } from "./runtime.js";
 const COMMANDS = ["chat", "action", "analyze", "schedule", "write", "publish", "run"] as const;
 type Command = (typeof COMMANDS)[number];
 
+function isPlaceholderTopicName(name: string | undefined): boolean {
+  return !name || /^Topic \d+$/i.test(name.trim());
+}
+
+function summarizeTopicFromTitles(titles: string[]): string | null {
+  if (titles.length === 0) return null;
+  const cleaned = titles
+    .map((title) => title.replace(/\s*[\|\-–—:]\s*.*/u, "").replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  return cleaned[0] || null;
+}
+
 function printUsage(): void {
   console.log(`
-OpenClaw Content Engine — Telegram → Discourse Pipeline
+Content Engine — Telegram → Discourse Pipeline
 
 Usage: node dist/index.js <command>
 
 Commands:
-  chat      Start an interactive OpenClaw chat session
-  action    Execute a machine-friendly action for OpenClaw-compatible integrations
+  chat      Start an interactive content engine chat session
+  action    Execute a machine-friendly action for external integrations
   analyze   Fetch new Telegram posts, extract articles, generate embeddings, discover topics
   schedule  Create content plan from discovered topics
   write     Generate articles for approved plan items
@@ -51,8 +64,13 @@ async function main(): Promise<void> {
 
   const db = new TopicMemoryDB(config.db.connectionString);
   await db.init();
+  const persistedTelegramSession = await db.getState("telegram_session");
+  if (persistedTelegramSession && !config.telegram.session) {
+    config.telegram.session = persistedTelegramSession;
+  }
+  const normalizedTelegramChannel = normalizeTelegramChannelReference(config.telegram.channel);
   const runtime = createRuntime(config, db);
-  const analyzerClaw = new TelegramAnalyzerClaw(runtime, config.telegram.channel);
+  const analyzerClaw = new TelegramAnalyzerClaw(runtime, normalizedTelegramChannel);
   const schedulerClaw = new PublicationSchedulerClaw(runtime);
   const writerClaw = new ArticleWriterClaw(runtime);
   const publisherClaw = new ArticlePublisherClaw(runtime, config.discourse.categoryId);
@@ -120,10 +138,21 @@ async function main(): Promise<void> {
         if (plan.length > 0) {
           console.log("\nContent Plan:");
           const topics = await runtime.topicMemory.getAllTopics();
+          const articles = await runtime.topicMemory.getAllArticles();
+          const articleMap = new Map(articles.map((article) => [article.id, article]));
           for (const item of plan) {
             const topic = topics.find((t) => t.id === item.topicId);
+            let label = topic?.name || item.topicId;
+            if (!topic || isPlaceholderTopicName(topic.name)) {
+              const titles = topic
+                ? (await runtime.topicMemory.getTopicArticleIds(topic.id))
+                    .map((articleId) => articleMap.get(articleId)?.title)
+                    .filter((title): title is string => Boolean(title))
+                : [];
+              label = summarizeTopicFromTitles(titles) || label;
+            }
             console.log(
-              `  [${item.status.toUpperCase()}] ${topic?.name || item.topicId} (priority: ${item.priority})`
+              `  [${item.status.toUpperCase()}] ${label} (priority: ${item.priority})`
             );
           }
         }
@@ -131,12 +160,15 @@ async function main(): Promise<void> {
       }
 
       case "write": {
-        const response = await contentEngineClaw.handleUserMessage("Write an article for approved scheduled topics");
-        const result = response.payload as Awaited<ReturnType<ArticleWriterClaw["write"]>>;
+        const topicQuery = process.argv.slice(3).join(" ").trim();
+        const result = await writerClaw.write(topicQuery ? { topicQuery } : undefined);
         console.log("\n--- Writing Complete ---");
         console.log(`  Drafts generated: ${result.drafts.length}`);
         for (const article of result.drafts) {
           console.log(`  - ${article.title}`);
+          console.log("");
+          console.log(article.body);
+          console.log("");
         }
         break;
       }
@@ -151,7 +183,7 @@ async function main(): Promise<void> {
       }
 
       case "run": {
-        console.log("=== OpenClaw Content Engine Chat Convenience Run ===\n");
+        console.log("=== Content Engine Chat Convenience Run ===\n");
         const responses = await contentEngineClaw.runConvenienceSequence();
         for (const response of responses) {
           console.log(`[${response.action}] ${response.summary}`);

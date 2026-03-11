@@ -1,5 +1,6 @@
-import { TopicMemoryDB } from "@openclaw/topic-memory-db";
+import { TopicMemoryDB } from "@contentengine/topic-memory-db";
 import type {
+  ArticleExtractionJob,
   ContentPlanItem,
   DraftArticle,
   PublishedArticle,
@@ -8,14 +9,14 @@ import type {
   StoredPost,
   StoredTopic,
   TopicArticleLink,
-} from "@openclaw/topic-memory-db";
-import type { OpenClawSkill } from "./skill.js";
+} from "@contentengine/topic-memory-db";
+import type { ContentEngineSkill } from "./skill.js";
 
 export interface TopicMemorySkillInput {
   operation: string;
 }
 
-export class TopicMemorySkill implements OpenClawSkill<TopicMemorySkillInput, unknown> {
+export class TopicMemorySkill implements ContentEngineSkill<TopicMemorySkillInput, unknown> {
   readonly name = "topic_memory";
   readonly description = "Persist and retrieve semantic knowledge, plans, drafts, and publication state.";
 
@@ -53,6 +54,22 @@ export class TopicMemorySkill implements OpenClawSkill<TopicMemorySkillInput, un
     return this.db.getAllArticles();
   }
 
+  async enqueueArticleExtractionJob(job: Pick<ArticleExtractionJob, "url" | "postId">): Promise<void> {
+    await this.db.enqueueArticleExtractionJob(job);
+  }
+
+  async getPendingArticleExtractionJobs(limit = 100): Promise<ArticleExtractionJob[]> {
+    return this.db.getPendingArticleExtractionJobs(limit);
+  }
+
+  async recordArticleExtractionFailure(url: string, lastError: string): Promise<void> {
+    await this.db.recordArticleExtractionFailure(url, lastError);
+  }
+
+  async completeArticleExtractionJob(url: string): Promise<void> {
+    await this.db.completeArticleExtractionJob(url);
+  }
+
   async getArticlesWithoutEmbeddings(): Promise<StoredArticle[]> {
     return this.db.getArticlesWithoutEmbeddings();
   }
@@ -67,6 +84,13 @@ export class TopicMemorySkill implements OpenClawSkill<TopicMemorySkillInput, un
 
   async getEmbeddingByArticleId(articleId: string): Promise<StoredEmbedding | null> {
     return this.db.getEmbeddingByArticleId(articleId);
+  }
+
+  async findNearestEmbeddings(
+    queryEmbedding: number[],
+    k = 5
+  ): Promise<Array<StoredEmbedding & { distance: number }>> {
+    return this.db.findNearestEmbeddings(queryEmbedding, k);
   }
 
   async upsertTopic(topic: Omit<StoredTopic, "createdAt" | "updatedAt">): Promise<StoredTopic> {

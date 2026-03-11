@@ -1,5 +1,5 @@
-import { DiscourseClient } from "@openclaw/discourse-api-client";
-import { TopicMemoryDB } from "@openclaw/topic-memory-db";
+import { DiscourseClient } from "@contentengine/discourse-api-client";
+import { TopicMemoryDB } from "@contentengine/topic-memory-db";
 import type { GeneratedArticle } from "./article-writer.js";
 import type { EngineConfig } from "../config.js";
 

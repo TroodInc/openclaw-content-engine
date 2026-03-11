@@ -1,5 +1,5 @@
-import type { ContentPlanItem, StoredArticle, StoredEmbedding, StoredTopic } from "@openclaw/topic-memory-db";
-import type { OpenClawRuntime } from "../runtime.js";
+import type { ContentPlanItem, StoredArticle, StoredEmbedding, StoredTopic } from "@contentengine/topic-memory-db";
+import type { ContentEngineRuntime } from "../runtime.js";
 import type { ScheduleDecision } from "../skills/editorial-intelligence-skill.js";
 
 export interface ScheduledArticleTask {
@@ -13,7 +13,7 @@ export interface PublicationSchedulerClawResult {
 }
 
 export class PublicationSchedulerClaw {
-  constructor(private readonly runtime: OpenClawRuntime) {}
+  constructor(private readonly runtime: ContentEngineRuntime) {}
 
   async run(input?: { humanComment?: string; maxItems?: number }): Promise<PublicationSchedulerClawResult> {
     return this.schedule(input);
@@ -25,6 +25,7 @@ export class PublicationSchedulerClaw {
     const embeddings = await this.runtime.topicMemory.getAllEmbeddings();
     const contentPlan = await this.runtime.topicMemory.getAllContentPlan();
     const published = await this.runtime.topicMemory.getPublishedArticles();
+    const validTopicIds = new Set(topics.map((topic) => topic.id));
 
     const scheduledTopicIds = new Set(
       contentPlan
@@ -57,6 +58,7 @@ export class PublicationSchedulerClaw {
 
     const scheduled: ScheduledArticleTask[] = [];
     for (const decision of decisions) {
+      if (!validTopicIds.has(decision.topicId)) continue;
       if (scheduledTopicIds.has(decision.topicId)) continue;
       const planItem = await this.runtime.topicMemory.insertContentPlanItem({
         topicId: decision.topicId,
@@ -65,6 +67,7 @@ export class PublicationSchedulerClaw {
         humanComment: input?.humanComment,
         scheduledDate: decision.scheduledDate,
       });
+      scheduledTopicIds.add(decision.topicId);
       scheduled.push({ planItem, rationale: decision.rationale });
     }
 

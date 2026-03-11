@@ -1,6 +1,6 @@
 import OpenAI from "openai";
-import type { ContentPlanItem, StoredArticle, StoredTopic } from "@openclaw/topic-memory-db";
-import type { OpenClawSkill } from "./skill.js";
+import type { ContentPlanItem, StoredArticle, StoredTopic } from "@contentengine/topic-memory-db";
+import type { ContentEngineSkill } from "./skill.js";
 
 export interface EditorialScheduleCandidate {
   topic: StoredTopic;
@@ -37,7 +37,7 @@ export interface DraftArticleOutput {
 }
 
 export class EditorialIntelligenceSkill
-  implements OpenClawSkill<ScheduleTopicsInput, ScheduleDecision[]>
+  implements ContentEngineSkill<ScheduleTopicsInput, ScheduleDecision[]>
 {
   readonly name = "editorial_intelligence";
   readonly description = "Use an LLM to prioritize topics and generate concise insight articles.";
@@ -86,7 +86,7 @@ export class EditorialIntelligenceSkill
         {
           role: "system",
           content:
-            "You prioritize editorial topics for an OpenClaw content engine. Prefer timely, high-signal, not-yet-covered themes. Return valid JSON only.",
+            "You prioritize editorial topics for a content engine. Prefer timely, high-signal, not-yet-covered themes. Return valid JSON only.",
         },
         { role: "user", content: prompt },
       ],
@@ -136,7 +136,7 @@ export class EditorialIntelligenceSkill
         {
           role: "system",
           content:
-            "You are an expert technical editor writing short, insightful, source-grounded articles for an OpenClaw content engine. Output valid JSON only.",
+            "You are an expert technical editor writing short, insightful, source-grounded articles for a content engine. Output valid JSON only.",
         },
         { role: "user", content: prompt },
       ],

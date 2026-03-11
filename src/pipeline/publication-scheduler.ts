@@ -1,5 +1,5 @@
-import { TopicMemoryDB } from "@openclaw/topic-memory-db";
-import type { StoredTopic, ContentPlanItem } from "@openclaw/topic-memory-db";
+import { TopicMemoryDB } from "@contentengine/topic-memory-db";
+import type { StoredTopic, ContentPlanItem } from "@contentengine/topic-memory-db";
 import type { EngineConfig } from "../config.js";
 
 /** Result of the scheduling pipeline */

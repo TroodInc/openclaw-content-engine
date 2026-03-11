@@ -1,4 +1,4 @@
-export type { OpenClawSkill } from "./skill.js";
+export type { ContentEngineSkill } from "./skill.js";
 export { TelegramReaderSkill } from "./telegram-reader-skill.js";
 export { ArticleExtractorSkill } from "./article-extractor-skill.js";
 export { SemanticUtilsSkill } from "./semantic-utils-skill.js";

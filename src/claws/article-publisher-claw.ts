@@ -1,5 +1,5 @@
-import type { DraftArticle } from "@openclaw/topic-memory-db";
-import type { OpenClawRuntime } from "../runtime.js";
+import type { DraftArticle } from "@contentengine/topic-memory-db";
+import type { ContentEngineRuntime } from "../runtime.js";
 
 export interface ArticlePublisherClawResult {
   published: number;
@@ -7,7 +7,7 @@ export interface ArticlePublisherClawResult {
 }
 
 export class ArticlePublisherClaw {
-  constructor(private readonly runtime: OpenClawRuntime, private readonly categoryId: number) {}
+  constructor(private readonly runtime: ContentEngineRuntime, private readonly categoryId: number) {}
 
   async run(): Promise<ArticlePublisherClawResult> {
     return this.publish();
@@ -36,7 +36,9 @@ export class ArticlePublisherClaw {
         await this.runtime.topicMemory.updateDraftArticleStatus(draft.id, "published");
         await this.runtime.topicMemory.updateContentPlanStatus(draft.contentPlanId, "published");
         published++;
-      } catch {
+      } catch (error) {
+        const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+        console.warn(`[discourse-publisher] Failed to publish "${draft.title}": ${message}`);
         failed++;
       }
     }

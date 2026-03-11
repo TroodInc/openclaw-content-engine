@@ -1,6 +1,6 @@
-import { DiscourseClient } from "@openclaw/discourse-api-client";
-import type { DiscourseConfig, DiscourseTopic } from "@openclaw/discourse-api-client";
-import type { OpenClawSkill } from "./skill.js";
+import { DiscourseClient } from "@contentengine/discourse-api-client";
+import type { DiscourseConfig, DiscourseTopic } from "@contentengine/discourse-api-client";
+import type { ContentEngineSkill } from "./skill.js";
 
 export interface PublishDiscourseTopicInput {
   title: string;
@@ -10,7 +10,7 @@ export interface PublishDiscourseTopicInput {
 }
 
 export class DiscoursePublisherSkill
-  implements OpenClawSkill<PublishDiscourseTopicInput, DiscourseTopic>
+  implements ContentEngineSkill<PublishDiscourseTopicInput, DiscourseTopic>
 {
   readonly name = "discourse_publisher";
   readonly description = "Publish Markdown articles to Discourse.";

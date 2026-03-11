@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import type { StoredArticle, StoredTopic } from "@openclaw/topic-memory-db";
-import type { TelegramPost } from "@openclaw/telegram-channel-reader";
-import type { Cluster } from "@openclaw/semantic-skills";
-import type { OpenClawRuntime } from "../runtime.js";
+import type { StoredArticle, StoredTopic } from "@contentengine/topic-memory-db";
+import type { TelegramPost } from "@contentengine/telegram-channel-reader";
+import type { Cluster } from "@contentengine/semantic-skills";
+import type { ContentEngineRuntime } from "../runtime.js";
 
 export interface ArticleKnowledgeObject {
   article: StoredArticle;
@@ -17,9 +17,29 @@ export interface TelegramAnalyzerClawResult {
   knowledgeObjects: ArticleKnowledgeObject[];
 }
 
+function truncateText(value: string, maxLength: number): string {
+  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function normalizeTitleSeed(title: string): string {
+  return title
+    .replace(/\s*[\|\-–—:]\s*.*/u, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isPlaceholderTopicName(name: string | undefined): boolean {
+  return !name || /^Topic \d+$/i.test(name.trim());
+}
+
+function isPlaceholderTopicDescription(description: string | undefined): boolean {
+  const normalized = description?.trim().toLowerCase();
+  return !normalized || normalized === "ai-discovered topic cluster" || normalized === "auto-discovered topic";
+}
+
 export class TelegramAnalyzerClaw {
   constructor(
-    private readonly runtime: OpenClawRuntime,
+    private readonly runtime: ContentEngineRuntime,
     private readonly channelKey: string
   ) {}
 
@@ -29,9 +49,10 @@ export class TelegramAnalyzerClaw {
 
   async analyze(): Promise<TelegramAnalyzerClawResult> {
     const lastId = await this.getLastProcessedId();
-    const fetchResult = await this.runtime.telegramReader.run({ sinceId: lastId, limit: 100 });
+    const fetchResult = await this.runtime.telegramReader.run({ sinceId: lastId });
     const newPosts = await this.persistNewPosts(fetchResult.posts);
-    const extractedArticles = await this.extractArticles(newPosts);
+    await this.enqueueArticleExtractions(newPosts);
+    const extractedArticles = await this.processArticleExtractionQueue();
     const newEmbeddings = await this.embedNewArticles();
     const topicAssignments = await this.refreshTopics();
 
@@ -83,8 +104,7 @@ export class TelegramAnalyzerClaw {
     return inserted;
   }
 
-  private async extractArticles(posts: TelegramPost[]): Promise<StoredArticle[]> {
-    const created: StoredArticle[] = [];
+  private async enqueueArticleExtractions(posts: TelegramPost[]): Promise<void> {
     for (const post of posts) {
       if (post.urls.length === 0) continue;
       const storedPost = await this.runtime.topicMemory.getPostByTelegramId(post.id, post.channelId);
@@ -92,20 +112,47 @@ export class TelegramAnalyzerClaw {
 
       for (const url of post.urls) {
         if (await this.runtime.topicMemory.hasArticle(url)) continue;
-        const extracted = await this.runtime.articleExtractor.run({ url });
-        if (!extracted) continue;
+        await this.runtime.topicMemory.enqueueArticleExtractionJob({ url, postId: storedPost.id });
+      }
+    }
+  }
+
+  private async processArticleExtractionQueue(): Promise<StoredArticle[]> {
+    const created: StoredArticle[] = [];
+    const jobs = await this.runtime.topicMemory.getPendingArticleExtractionJobs(200);
+
+    for (const job of jobs) {
+      if (await this.runtime.topicMemory.hasArticle(job.url)) {
+        await this.runtime.topicMemory.completeArticleExtractionJob(job.url);
+        continue;
+      }
+
+      try {
+        const extracted = await this.runtime.articleExtractor.run({ url: job.url });
+        if (!extracted) {
+          await this.runtime.topicMemory.recordArticleExtractionFailure(
+            job.url,
+            "extractor_returned_null"
+          );
+          continue;
+        }
 
         const stored = await this.runtime.topicMemory.insertArticle({
-          postId: storedPost.id,
-          url: extracted.url,
+          postId: job.postId,
+          url: job.url,
           title: extracted.title,
           content: extracted.content,
           summary: extracted.description,
           wordCount: extracted.wordCount,
         });
+        await this.runtime.topicMemory.completeArticleExtractionJob(job.url);
         if (stored) created.push(stored);
+      } catch (error) {
+        const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+        await this.runtime.topicMemory.recordArticleExtractionFailure(job.url, message);
       }
     }
+
     return created;
   }
 
@@ -127,6 +174,7 @@ export class TelegramAnalyzerClaw {
   private async refreshTopics(): Promise<ArticleKnowledgeObject[]> {
     const embeddings = await this.runtime.topicMemory.getAllEmbeddings();
     if (embeddings.length === 0) return [];
+    const articles = await this.runtime.topicMemory.getAllArticles();
 
     const clusters = this.runtime.semanticUtils.cluster({
       embeddings: embeddings.map((embedding) => embedding.embedding),
@@ -137,7 +185,7 @@ export class TelegramAnalyzerClaw {
     const clusterTopics = new Map<number, StoredTopic>();
 
     for (const cluster of clusters) {
-      const topic = await this.persistTopicCluster(cluster, embeddings, existingTopics);
+      const topic = await this.persistTopicCluster(cluster, embeddings, articles, existingTopics);
       clusterTopics.set(cluster.id, topic);
     }
 
@@ -162,7 +210,6 @@ export class TelegramAnalyzerClaw {
       }
     }
 
-    const articles = await this.runtime.topicMemory.getAllArticles();
     return articles
       .filter((article) => assignments.has(article.id))
       .map((article) => ({
@@ -173,7 +220,8 @@ export class TelegramAnalyzerClaw {
 
   private async persistTopicCluster(
     cluster: Cluster,
-    embeddings: Awaited<ReturnType<OpenClawRuntime["topicMemory"]["getAllEmbeddings"]>>,
+    embeddings: Awaited<ReturnType<ContentEngineRuntime["topicMemory"]["getAllEmbeddings"]>>,
+    articles: Awaited<ReturnType<ContentEngineRuntime["topicMemory"]["getAllArticles"]>>,
     existingTopics: StoredTopic[]
   ): Promise<StoredTopic> {
     const matched = existingTopics.find((topic) => {
@@ -184,12 +232,50 @@ export class TelegramAnalyzerClaw {
       return similarity > 0.85;
     });
 
+    const topicMetadata = this.describeTopicCluster(cluster, embeddings, articles);
+
     return this.runtime.topicMemory.upsertTopic({
       id: matched?.id || randomUUID(),
-      name: matched?.name || `Topic ${cluster.id + 1}`,
-      description: matched?.description || "AI-discovered topic cluster",
+      name: isPlaceholderTopicName(matched?.name) ? topicMetadata.name : (matched?.name as string),
+      description: isPlaceholderTopicDescription(matched?.description)
+        ? topicMetadata.description
+        : (matched?.description as string),
       centroidEmbedding: cluster.centroid,
       articleCount: cluster.members.length,
     });
+  }
+
+  private describeTopicCluster(
+    cluster: Cluster,
+    embeddings: Awaited<ReturnType<ContentEngineRuntime["topicMemory"]["getAllEmbeddings"]>>,
+    articles: Awaited<ReturnType<ContentEngineRuntime["topicMemory"]["getAllArticles"]>>
+  ): { name: string; description: string } {
+    const articleMap = new Map(articles.map((article) => [article.id, article]));
+    const clusterArticles = cluster.members
+      .map((memberIndex) => {
+        const embedding = embeddings[memberIndex];
+        const article = articleMap.get(embedding.articleId);
+        if (!article) return null;
+        const similarity = this.runtime.semanticUtils.similarity(embedding.embedding, cluster.centroid);
+        return { article, similarity };
+      })
+      .filter((item): item is { article: StoredArticle; similarity: number } => item !== null)
+      .sort((a, b) => b.similarity - a.similarity);
+
+    const representativeTitles = clusterArticles
+      .map((item) => normalizeTitleSeed(item.article.title))
+      .filter(Boolean);
+
+    const name = representativeTitles[0]
+      ? truncateText(representativeTitles[0], 80)
+      : `Topic ${cluster.id + 1}`;
+
+    const descriptionSource = representativeTitles.slice(0, 3);
+    const description =
+      descriptionSource.length > 0
+        ? truncateText(`Sources: ${descriptionSource.join(" | ")}`, 220)
+        : "AI-discovered topic cluster";
+
+    return { name, description };
   }
 }

@@ -1,6 +1,6 @@
-import { TelegramChannelReader } from "@openclaw/telegram-channel-reader";
-import type { TelegramPost, TelegramReaderConfig } from "@openclaw/telegram-channel-reader";
-import type { OpenClawSkill } from "./skill.js";
+import { TelegramChannelReader } from "@contentengine/telegram-channel-reader";
+import type { TelegramPost, TelegramReaderConfig } from "@contentengine/telegram-channel-reader";
+import type { ContentEngineSkill } from "./skill.js";
 
 export interface FetchTelegramPostsInput {
   sinceId: number;
@@ -14,7 +14,7 @@ export interface FetchTelegramPostsOutput {
 }
 
 export class TelegramReaderSkill
-  implements OpenClawSkill<FetchTelegramPostsInput, FetchTelegramPostsOutput>
+  implements ContentEngineSkill<FetchTelegramPostsInput, FetchTelegramPostsOutput>
 {
   readonly name = "telegram_reader";
   readonly description = "Read Telegram channel posts incrementally.";

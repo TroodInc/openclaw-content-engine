@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import type { ContentPlanItem } from "@openclaw/topic-memory-db";
+import type { ContentPlanItem } from "@contentengine/topic-memory-db";
 import type { ArticlePublisherClaw } from "./article-publisher-claw.js";
 import type { ArticleWriterClaw } from "./article-writer-claw.js";
 import type { PublicationSchedulerClaw } from "./publication-scheduler-claw.js";
@@ -76,7 +76,7 @@ export class ContentEngineClaw {
         {
           role: "system",
           content:
-            "You route chat requests for an OpenClaw content engine. Choose exactly one action and JSON args. Valid actions: telegram.analyze, plan.show, plan.schedule, plan.approve, article.write, article.publish. Return JSON only with shape { action, args }. For article.write, include topicName when the user mentions a topic. For plan.approve include planId and optional comment. For plan.schedule include humanComment and optional maxItems.",
+            "You route chat requests for a content engine. Choose exactly one action and JSON args. Valid actions: telegram.analyze, plan.show, plan.schedule, plan.approve, article.write, article.publish. Return JSON only with shape { action, args }. For article.write, include topicName when the user mentions a topic. For plan.approve include planId and optional comment. For plan.schedule include humanComment and optional maxItems.",
         },
         { role: "user", content: message },
       ],

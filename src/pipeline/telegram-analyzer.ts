@@ -1,9 +1,9 @@
-import { TelegramChannelReader } from "@openclaw/telegram-channel-reader";
-import type { TelegramPost } from "@openclaw/telegram-channel-reader";
-import { ArticleExtractor } from "@openclaw/article-extractor";
-import { EmbeddingService, clusterEmbeddings, cosineSimilarity } from "@openclaw/semantic-skills";
-import { TopicMemoryDB } from "@openclaw/topic-memory-db";
-import type { StoredArticle } from "@openclaw/topic-memory-db";
+import { TelegramChannelReader } from "@contentengine/telegram-channel-reader";
+import type { TelegramPost } from "@contentengine/telegram-channel-reader";
+import { ArticleExtractor } from "@contentengine/article-extractor";
+import { EmbeddingService, clusterEmbeddings, cosineSimilarity } from "@contentengine/semantic-skills";
+import { TopicMemoryDB } from "@contentengine/topic-memory-db";
+import type { StoredArticle } from "@contentengine/topic-memory-db";
 import { randomUUID } from "node:crypto";
 import type { EngineConfig } from "../config.js";
 

@@ -1,8 +1,6 @@
-# Telegram → Discourse Content Engine (OpenClaw-style)
+# Telegram → Discourse Content Engine
 
-An OpenClaw-style AI content engine that turns Telegram channel content into drafted and published Discourse articles.
-
-This repository currently implements a project-local claws-and-skills architecture. It does not yet integrate with an official OpenClaw SDK, runtime, or deployment model from `docs.openclaw.ai`.
+A Telegram → Discourse content engine built as a chat-first claws-and-skills system, with both Dockerized execution and an OpenClaw-compatible control surface.
 
 The repository supports two complementary usage modes in the same codebase:
 
@@ -21,14 +19,15 @@ The system is incremental by design: it processes only new Telegram posts, store
 From the workspace root:
 
 ```bash
-chmod +x ./openclaw.sh
-./openclaw.sh setup
-./openclaw.sh chat
+chmod +x ./content-engine.sh
+cp openclaw-content-engine/.env.docker.example openclaw-content-engine/.env.docker
+./content-engine.sh docker setup
+./content-engine.sh docker chat
 ```
 
-The root `openclaw.sh` script bootstraps dependencies, builds the workspace, validates the orchestrator `.env`, and launches the selected OpenClaw command.
-
-If you do not want to install and run the stack directly on your machine, use the Docker workflow below instead.
+The root `content-engine.sh` script is the recommended entrypoint.
+For open-source usage, the simplest path is the Docker-first flow above.
+If you want to run everything directly on your machine instead, use the local commands further below.
 
 ---
 
@@ -40,42 +39,30 @@ The workspace includes a containerized runtime for isolated execution:
 - `docker-compose.yml` — runs the content engine and PostgreSQL with `pgvector`
 - `.env.docker.example` — example container environment file
 
-### Docker Quick Start
-
-From the workspace root:
-
 ```bash
-cp openclaw-content-engine/.env.docker.example openclaw-content-engine/.env.docker
-docker compose build
-docker compose run --rm engine node dist/index.js chat
+./content-engine.sh docker db
+./content-engine.sh docker analyze
+./content-engine.sh docker schedule
+./content-engine.sh docker write
+./content-engine.sh docker publish
+./content-engine.sh docker action plan.show
+./content-engine.sh docker stop
+./content-engine.sh docker reset
 ```
 
-For the Docker setup, set:
+What they do:
 
-```bash
-DATABASE_URL=postgresql://postgres:postgres@db:5432/openclaw
-```
-
-To start only the database service first:
-
-```bash
-docker compose up -d db
-```
-
-To run a one-off command instead of chat:
-
-```bash
-docker compose run --rm engine node dist/index.js analyze
-docker compose run --rm engine node dist/index.js schedule
-docker compose run --rm engine node dist/index.js write
-docker compose run --rm engine node dist/index.js publish
-```
+- `docker setup` — build the image and start the database
+- `docker chat` — launch the chat interface
+- `docker db` — start only the database
+- `docker stop` — stop the Docker stack
+- `docker reset` — stop the stack and delete the Docker database volume
 
 ---
 
 ## OpenClaw-Compatible Mode
 
-This repo also exposes a stable action interface intended for an external OpenClaw controller.
+This repo exposes a stable action interface intended for an external OpenClaw controller.
 
 Compatibility assets:
 
@@ -143,16 +130,19 @@ Implemented claws:
 
 ### Skills
 
-Skills are reusable operations. They wrap support packages and expose clean project-facing interfaces.
+Skills are reusable operations. They wrap workspace support packages and expose clean project-facing interfaces.
 
 Implemented skills:
 
-- `TelegramReaderSkill` → wraps `@openclaw/telegram-channel-reader`
-- `ArticleExtractorSkill` → wraps `@openclaw/article-extractor`
-- `SemanticUtilsSkill` → wraps `@openclaw/semantic-skills`
-- `TopicMemorySkill` → wraps `@openclaw/topic-memory-db`
-- `DiscoursePublisherSkill` → wraps `@openclaw/discourse-api-client`
-- `EditorialIntelligenceSkill` → OpenAI-backed planning and writing skill
+- `TelegramReaderSkill` → wraps the workspace package `@openclaw/telegram-channel-reader`
+- `ArticleExtractorSkill` → wraps the workspace package `@openclaw/article-extractor`
+- `SemanticUtilsSkill` → wraps the workspace package `@openclaw/semantic-skills`
+- `TopicMemorySkill` → wraps the workspace package `@openclaw/topic-memory-db`
+- `DiscoursePublisherSkill` → wraps the workspace package `@openclaw/discourse-api-client`
+- `EditorialIntelligenceSkill` → provides OpenAI-backed planning and writing
+
+The `@openclaw/*` package scope here is this workspace's internal package namespace.
+It is not meant to imply that these packages come from an official OpenClaw SDK.
 
 ---
 
@@ -282,7 +272,7 @@ Output:
 | `topic-memory-db` | PostgreSQL + pgvector knowledge store |
 | `discourse-api-client` | Discourse publishing |
 
-These repositories remain reusable libraries. The OpenClaw binding lives in this repo’s `skills/` layer.
+These repositories remain reusable workspace libraries. The OpenClaw-compatible binding lives in this repo’s `skills/` layer and CLI action surface.
 
 ---
 
@@ -315,7 +305,7 @@ Key properties:
 
 Primary interface:
 
-- `./openclaw.sh chat`
+- `./content-engine.sh docker chat`
 
 Additional machine-friendly interface:
 
@@ -323,11 +313,16 @@ Additional machine-friendly interface:
 
 Convenience commands:
 
-- `./openclaw.sh analyze`
-- `./openclaw.sh schedule`
-- `./openclaw.sh write`
-- `./openclaw.sh publish`
-- `./openclaw.sh run`
+- `./content-engine.sh docker analyze`
+- `./content-engine.sh docker schedule`
+- `./content-engine.sh docker write`
+- `./content-engine.sh docker publish`
+- `./content-engine.sh docker run`
+- `./content-engine.sh analyze`
+- `./content-engine.sh schedule`
+- `./content-engine.sh write`
+- `./content-engine.sh publish`
+- `./content-engine.sh run`
 
 `run` may still be used, but it is only a convenience wrapper that triggers a sequence of chat-routed claw actions through `ContentEngineClaw`.
 
@@ -341,12 +336,17 @@ Example convenience sequence:
 CLI commands:
 
 ```bash
-./openclaw.sh chat
-./openclaw.sh analyze
-./openclaw.sh schedule
-./openclaw.sh write
-./openclaw.sh publish
-./openclaw.sh run
+./content-engine.sh docker chat
+./content-engine.sh docker analyze
+./content-engine.sh docker schedule
+./content-engine.sh docker write
+./content-engine.sh docker publish
+./content-engine.sh docker run
+./content-engine.sh analyze
+./content-engine.sh schedule
+./content-engine.sh write
+./content-engine.sh publish
+./content-engine.sh run
 ```
 
 You can still invoke the orchestrator directly with `node dist/index.js ...`, but the root launcher is the recommended entrypoint for this multi-repo workspace.
@@ -365,21 +365,13 @@ You can still invoke the orchestrator directly with `node dist/index.js ...`, bu
 
 ### Install
 
-```bash
-for dir in telegram-channel-reader article-extractor semantic-skills topic-memory-db discourse-api-client openclaw-content-engine; do
-  (cd $dir && npm install)
-done
-
-for dir in telegram-channel-reader article-extractor semantic-skills topic-memory-db discourse-api-client openclaw-content-engine; do
-  (cd $dir && npm run build)
-done
-```
-
-Or use the root launcher:
+Recommended host setup:
 
 ```bash
-./openclaw.sh setup
+./content-engine.sh setup
 ```
+
+If you do not want to install dependencies on your host, use the Docker workflow documented above instead.
 
 ### Database
 
@@ -397,8 +389,8 @@ See [`.env.example`](.env.example) for the full list:
 - `DATABASE_URL` — PostgreSQL connection string
 - `DISCOURSE_URL`, `DISCOURSE_API_KEY`, `DISCOURSE_USERNAME` — Discourse publishing
 
-For `./openclaw.sh chat`, `analyze`, `schedule`, or `write`, only the Telegram/OpenAI/DB values are required.
-For `./openclaw.sh publish` or `run`, publish credentials are required.
+For `./content-engine.sh chat`, `analyze`, `schedule`, or `write`, only the Telegram/OpenAI/DB values are required.
+For `./content-engine.sh publish` or `run`, publish credentials are required.
 
 ---
 
@@ -416,20 +408,25 @@ For `./openclaw.sh publish` or `run`, publish credentials are required.
 
 What is implemented today:
 
-- project-local `Claw` and `Skill` abstractions
 - a chat-first control layer via `ContentEngineClaw`
 - specialized claws for analysis, scheduling, writing, and publishing
+- reusable workspace packages under the `@openclaw/*` scope
 - Dockerized isolated execution for the app and database
-- OpenClaw-compatible action entrypoint for external control
+- an OpenClaw-compatible action entrypoint for external control
+
+What this means in practice:
+
+- you can run the system directly through Docker or the local launcher
+- you can let an external OpenClaw setup drive this repo through `node dist/index.js action ...`
+- the compatibility surface is explicit and machine-friendly
 
 What is not implemented yet:
 
-- verified integration with an official OpenClaw SDK
-- official OpenClaw runtime registration or packaging model
-- official OpenClaw deployment conventions from `docs.openclaw.ai`
+- a verified official OpenClaw SDK dependency in this codebase
+- official OpenClaw runtime registration or packaging conventions from `docs.openclaw.ai`
 
 ---
 
 ## Status
 
-This repository now serves as a cleaner reference structure for an OpenClaw-powered AI content engine built on reusable TypeScript support packages.
+This repository now serves as a dual-mode content engine: self-hosted through Docker or the local launcher, and externally controllable through an OpenClaw-compatible action interface.

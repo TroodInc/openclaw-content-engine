@@ -2,13 +2,13 @@ import {
   EmbeddingService,
   clusterEmbeddings,
   cosineSimilarity,
-} from "@openclaw/semantic-skills";
+} from "@contentengine/semantic-skills";
 import type {
   EmbeddingResult,
   EmbeddingServiceConfig,
   Cluster,
-} from "@openclaw/semantic-skills";
-import type { OpenClawSkill } from "./skill.js";
+} from "@contentengine/semantic-skills";
+import type { ContentEngineSkill } from "./skill.js";
 
 export interface GenerateEmbeddingsInput {
   texts: string[];
@@ -20,7 +20,7 @@ export interface SemanticClusteringInput {
 }
 
 export class SemanticUtilsSkill
-  implements OpenClawSkill<GenerateEmbeddingsInput, EmbeddingResult[]>
+  implements ContentEngineSkill<GenerateEmbeddingsInput, EmbeddingResult[]>
 {
   readonly name = "semantic_utils";
   readonly description = "Generate embeddings and semantic clusters.";

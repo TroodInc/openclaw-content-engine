@@ -5,7 +5,7 @@ import type { ContentEngineClaw } from "./claws/content-engine-claw.js";
 export async function startInteractiveChat(contentEngine: ContentEngineClaw): Promise<void> {
   const rl = readline.createInterface({ input, output });
 
-  console.log("OpenClaw Content Engine Chat");
+  console.log("Content Engine Chat");
   console.log("Type your request, or 'exit' to quit.\n");
 
   try {

@@ -1,21 +1,21 @@
-import { ArticleExtractor } from "@openclaw/article-extractor";
-import type { ExtractedArticle } from "@openclaw/article-extractor";
-import type { OpenClawSkill } from "./skill.js";
+import { ArticleExtractor } from "@contentengine/article-extractor";
+import type { ExtractedArticle, ExtractionOptions } from "@contentengine/article-extractor";
+import type { ContentEngineSkill } from "./skill.js";
 
 export interface ExtractArticleInput {
   url: string;
 }
 
 export class ArticleExtractorSkill
-  implements OpenClawSkill<ExtractArticleInput, ExtractedArticle | null>
+  implements ContentEngineSkill<ExtractArticleInput, ExtractedArticle | null>
 {
   readonly name = "article_extractor";
   readonly description = "Extract clean article text from a URL.";
 
   private readonly extractor: ArticleExtractor;
 
-  constructor() {
-    this.extractor = new ArticleExtractor({ timeout: 15_000 });
+  constructor(options: ExtractionOptions) {
+    this.extractor = new ArticleExtractor(options);
   }
 
   async run(input: ExtractArticleInput): Promise<ExtractedArticle | null> {

@@ -1,5 +1,5 @@
 {
-  "name": "@openclaw/content-engine",
+  "name": "@contentengine/content-engine",
   "version": "0.1.0",
   "description": "AI-powered editorial pipeline: Telegram → Discourse",
   "type": "module",
@@ -18,11 +18,11 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@openclaw/telegram-channel-reader": "file:../telegram-channel-reader",
-    "@openclaw/article-extractor": "file:../article-extractor",
-    "@openclaw/semantic-skills": "file:../semantic-skills",
-    "@openclaw/topic-memory-db": "file:../topic-memory-db",
-    "@openclaw/discourse-api-client": "file:../discourse-api-client",
+    "@contentengine/telegram-channel-reader": "file:../telegram-channel-reader",
+    "@contentengine/article-extractor": "file:../article-extractor",
+    "@contentengine/semantic-skills": "file:../semantic-skills",
+    "@contentengine/topic-memory-db": "file:../topic-memory-db",
+    "@contentengine/discourse-api-client": "file:../discourse-api-client",
     "openai": "^4.28.0",
     "dotenv": "^16.4.0"
   },
